@@ -1,3 +1,5 @@
+"use client"
+
 import { Text, View, TouchableOpacity, Animated, FlatList } from "react-native"
 import { useState, useRef, useEffect } from "react"
 import { Audio } from "expo-av"
@@ -88,7 +90,28 @@ export const ScreenContent = () => {
         playsInSilentModeIOS: true,
       })
 
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY)
+      const { recording } = await Audio.Recording.createAsync({
+        android: {
+          extension: ".wav",
+          outputFormat: Audio.AndroidOutputFormat.DEFAULT,
+          audioEncoder: Audio.AndroidAudioEncoder.DEFAULT,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: ".wav",
+          outputFormat: Audio.IOSOutputFormat.LINEARPCM,
+          audioQuality: Audio.IOSAudioQuality.HIGH,
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {}
+      })
 
       setRecording(recording)
       setIsRecording(true)
@@ -131,7 +154,7 @@ export const ScreenContent = () => {
     }
   }
 
-  const playRecording = async (uri: string) => {
+  const playRecording: (uri: string) => Promise<void> = async (uri: string) => {
     try {
       if (currentSound) {
         await currentSound.unloadAsync()
@@ -162,22 +185,19 @@ export const ScreenContent = () => {
 
       <View className="flex-1 px-6 pt-12">
         <View className="flex-row items-center justify-between mb-6 h-14">
-          <Animated.View 
-            style={{ opacity: titleFade }}
-            className="flex-1 justify-center" 
-          >
-            <Text 
+          <Animated.View style={{ opacity: titleFade }} className="flex-1 justify-center">
+            <Text
               className={`text-4xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-              style={{ 
+              style={{
                 lineHeight: 44,
                 includeFontPadding: false,
-                textAlignVertical: 'center'
+                textAlignVertical: "center",
               }}
             >
               ToroHoAhy
             </Text>
           </Animated.View>
-          
+
           <View className="ml-4 justify-center">
             <ThemeToggle />
           </View>
@@ -208,7 +228,7 @@ export const ScreenContent = () => {
             <Animated.View
               // Apply rotation animation to the icon when recording
               style={{
-              transform: [{ rotate: micRotateInterpolate }],
+                transform: [{ rotate: micRotateInterpolate }],
               }}
             >
               {/* Display stop icon when recording, microphone icon otherwise */}
@@ -226,9 +246,7 @@ export const ScreenContent = () => {
             <FlatList
               data={recordings}
               keyExtractor={(item) => item.id}
-              renderItem={({ item, index }) => (
-                <AnimatedListItem item={item} index={index} onPlay={playRecording} />
-              )}
+              renderItem={({ item, index }) => <AnimatedListItem item={item} index={index} onPlay={playRecording} />}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
               decelerationRate="fast"
@@ -241,11 +259,7 @@ export const ScreenContent = () => {
             <View className="flex-1 items-center justify-center">
               <LottieView
                 ref={animationRef}
-                source={
-                  isDark
-                    ? require('../assets/mic1.json')
-                    : require('../assets/mic2.json')
-                }
+                source={isDark ? require("../assets/mic1.json") : require("../assets/mic2.json")}
                 autoPlay
                 loop
                 style={{ width: 100, height: 100 }}
