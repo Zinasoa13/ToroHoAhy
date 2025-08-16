@@ -2,14 +2,16 @@
 
 import { Text, View, TouchableOpacity, Animated, FlatList } from "react-native"
 import { useState, useRef, useEffect } from "react"
-import { Audio } from "expo-av"
-import { LinearGradient } from "expo-linear-gradient"
-import { useTheme } from "../contexts/ThemeContext"
-import { ThemeToggle } from "./ThemeToggle"
-import { AnimatedListItem } from "./AnimatedListItem"
-import { FloatingElements } from "./FloatingElements"
-import LottieView from "lottie-react-native"
+import { Audio } from "expo-av" // Expo pour gérer l'audio (enregistrement / lecture)
+import { LinearGradient } from "expo-linear-gradient" // Dégradé d'arrière-plan
+import { useTheme } from "../contexts/ThemeContext" // Contexte de thème (sombre/clair)
+import { ThemeToggle } from "./ThemeToggle" // Bouton pour basculer le thème
+import { AnimatedListItem } from "./AnimatedListItem" // Item animé de la liste des enregistrements
+import { FloatingElements } from "./FloatingElements" // Éléments flottants décoratifs
+import LottieView from "lottie-react-native" // Animations Lottie (JSON animés)
 
+
+// Structure représentant un enregistrement audio
 interface Recording {
   id: string
   uri: string
@@ -18,22 +20,25 @@ interface Recording {
 }
 
 export const ScreenContent = () => {
-  const { isDark } = useTheme()
-  const [recording, setRecording] = useState<Audio.Recording | null>(null)
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordings, setRecordings] = useState<Recording[]>([])
-  const [currentSound, setCurrentSound] = useState<Audio.Sound | null>(null)
-  const animationRef = useRef<LottieView>(null)
+  const { isDark } = useTheme() // Récupère si on est en thème sombre
+  const [recording, setRecording] = useState<Audio.Recording | null>(null) // Enregistrement en cours
+  const [isRecording, setIsRecording] = useState(false) // État "enregistrement en cours"
+  const [recordings, setRecordings] = useState<Recording[]>([]) // Liste des enregistrements terminés
+  const [currentSound, setCurrentSound] = useState<Audio.Sound | null>(null) // Son actuellement joué
+  const animationRef = useRef<LottieView>(null) // Référence à l’animation Lottie
 
-  const buttonScale = useRef(new Animated.Value(1)).current
-  const pulseAnim = useRef(new Animated.Value(1)).current
-  const titleFade = useRef(new Animated.Value(0)).current
-  const micRotate = useRef(new Animated.Value(0)).current
+  // Animations
+  const buttonScale = useRef(new Animated.Value(1)).current // Animation d’échelle du bouton
+  const pulseAnim = useRef(new Animated.Value(1)).current // Effet pulsation
+  const titleFade = useRef(new Animated.Value(0)).current // Apparition du titre
+  const micRotate = useRef(new Animated.Value(0)).current // Rotation du micro quand ça enregistre
 
+  // Lance l’animation Lottie au montage
   useEffect(() => {
     animationRef.current?.play()
   }, [])
 
+  // Animation du titre + nettoyage si enregistrement ou son actif
   useEffect(() => {
     Animated.timing(titleFade, {
       toValue: 1,
@@ -43,16 +48,18 @@ export const ScreenContent = () => {
 
     return () => {
       if (recording) {
-        recording.stopAndUnloadAsync()
+        recording.stopAndUnloadAsync() // Arrêter proprement un enregistrement
       }
       if (currentSound) {
-        currentSound.unloadAsync()
+        currentSound.unloadAsync() // Décharger un son en lecture
       }
     }
   }, [recording, currentSound])
 
+  // Animation micro & pulsation quand on enregistre
   useEffect(() => {
     if (isRecording) {
+      // Rotation infinie du micro
       Animated.loop(
         Animated.timing(micRotate, {
           toValue: 1,
@@ -61,6 +68,7 @@ export const ScreenContent = () => {
         }),
       ).start()
 
+      // Effet pulsation du bouton
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
@@ -76,20 +84,24 @@ export const ScreenContent = () => {
         ]),
       ).start()
     } else {
+      // Réinitialiser les animations si on arrête
       micRotate.stopAnimation()
       micRotate.setValue(0)
       pulseAnim.setValue(1)
     }
   }, [isRecording])
 
+  // Fonction pour démarrer l'enregistrement
   const startRecording = async () => {
     try {
+      // Demande permission micro
       await Audio.requestPermissionsAsync()
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       })
 
+      // Création d’un enregistrement avec paramètres spécifiques Android/iOS
       const { recording } = await Audio.Recording.createAsync({
         android: {
           extension: ".wav",
@@ -110,12 +122,13 @@ export const ScreenContent = () => {
           linearPCMIsBigEndian: false,
           linearPCMIsFloat: false,
         },
-        web: {}
+        web: {} // (pas encore géré mais obligatoire)
       })
 
       setRecording(recording)
       setIsRecording(true)
 
+      // Animation du bouton qui se réduit légèrement
       Animated.spring(buttonScale, {
         toValue: 0.95,
         tension: 150,
@@ -127,26 +140,28 @@ export const ScreenContent = () => {
     }
   }
 
+  // Fonction pour arrêter l'enregistrement
   const stopRecording = async () => {
     if (!recording) return
 
     setIsRecording(false)
 
     try {
-      await recording.stopAndUnloadAsync()
+      await recording.stopAndUnloadAsync() // Arrête l’enregistrement
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       })
 
       const uri = recording.getURI()
       if (uri) {
+        // Ajoute un nouvel enregistrement dans la liste
         const newRecording = {
           id: Date.now().toString(),
           uri: uri,
           name: `🎵 Rakitra ${recordings.length + 1}`,
           date: new Date().toLocaleString("fr-FR"),
         }
-        setRecordings((prev) => [newRecording, ...prev])
+        setRecordings((prev) => [newRecording, ...prev]) // Insère en haut de la liste
       }
       setRecording(null)
     } catch (err) {
@@ -154,12 +169,14 @@ export const ScreenContent = () => {
     }
   }
 
+  // Fonction pour lire un enregistrement audio
   const playRecording: (uri: string) => Promise<void> = async (uri: string) => {
     try {
       if (currentSound) {
-        await currentSound.unloadAsync()
+        await currentSound.unloadAsync() // Décharger le son précédent
       }
 
+      // Crée un nouvel objet Audio.Sound et lance la lecture
       const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true })
 
       setCurrentSound(sound)
@@ -169,6 +186,7 @@ export const ScreenContent = () => {
     }
   }
 
+  // Transformation pour animer la rotation du micro
   const micRotateInterpolate = micRotate.interpolate({
     inputRange: [0, 1],
     outputRange: ["0deg", "360deg"],
@@ -176,14 +194,17 @@ export const ScreenContent = () => {
 
   return (
     <View className={`flex-1 ${isDark ? "bg-gray-900" : "bg-gray-50"}`}>
+      {/* Dégradé d’arrière-plan */}
       <LinearGradient
         colors={isDark ? ["#0f172a", "#1e293b", "#334155"] : ["#f1f5f9", "#e2e8f0", "#cbd5e1"]}
         className="absolute inset-0"
       />
 
+      {/* Éléments flottants animés */}
       <FloatingElements />
 
       <View className="flex-1 px-6 pt-12">
+        {/* Header avec titre et bouton de thème */}
         <View className="flex-row items-center justify-between mb-6 h-14">
           <Animated.View style={{ opacity: titleFade }} className="flex-1 justify-center">
             <Text
@@ -203,6 +224,7 @@ export const ScreenContent = () => {
           </View>
         </View>
 
+        {/* Bouton d'enregistrement */}
         <Animated.View
           style={{
             transform: [{ scale: buttonScale }, { scale: pulseAnim }],
@@ -210,7 +232,7 @@ export const ScreenContent = () => {
           className="items-center mb-8"
         >
           <TouchableOpacity
-            onPress={isRecording ? stopRecording : startRecording}
+            onPress={isRecording ? stopRecording : startRecording} // Démarre ou arrête l’enregistrement
             className={`w-24 h-24 rounded-full items-center justify-center shadow-2xl ${
               isRecording
                 ? "bg-gradient-to-br from-red-500 to-pink-600"
@@ -224,19 +246,18 @@ export const ScreenContent = () => {
               elevation: 12,
             }}
           >
-            {/* Animated microphone icon or stop button */}
+            {/* Icône micro/stop animé */}
             <Animated.View
-              // Apply rotation animation to the icon when recording
               style={{
                 transform: [{ rotate: micRotateInterpolate }],
               }}
             >
-              {/* Display stop icon when recording, microphone icon otherwise */}
               <Text className="text-4xl">{isRecording ? "⏹" : "🎙️"}</Text>
             </Animated.View>
           </TouchableOpacity>
         </Animated.View>
 
+        {/* Liste des enregistrements */}
         <View className="flex-1">
           <Text className={`text-xl font-bold mb-4 px-4 ${isDark ? "text-white" : "text-gray-900"}`}>
             Ny rakitra ✨
@@ -246,7 +267,9 @@ export const ScreenContent = () => {
             <FlatList
               data={recordings}
               keyExtractor={(item) => item.id}
-              renderItem={({ item, index }) => <AnimatedListItem item={item} index={index} onPlay={playRecording} />}
+              renderItem={({ item, index }) => (
+                <AnimatedListItem item={item} index={index} onPlay={playRecording} />
+              )}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 20 }}
               decelerationRate="fast"
@@ -256,6 +279,7 @@ export const ScreenContent = () => {
               windowSize={10}
             />
           ) : (
+            // Message quand aucun enregistrement
             <View className="flex-1 items-center justify-center">
               <LottieView
                 ref={animationRef}
